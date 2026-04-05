@@ -1,44 +1,31 @@
-import { readFile } from 'fs/promises'
-import { join } from 'path'
-import { notFound } from 'next/navigation'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import CardPreviews from '@/components/CardPreviews'
 
-// Always read fresh from disk — no static caching
-export const dynamic = 'force-dynamic'
+export default function ResultsPage() {
+  const router = useRouter()
+  const [brand, setBrand] = useState(null)
+  const [cards, setCards] = useState([])
 
-const CARD_IDS = ['thank-you', 'promo', 'personal-greeting']
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('brandKit')
+      if (!raw) { router.replace('/'); return }
+      const { brand, cards } = JSON.parse(raw)
+      if (!brand || !cards?.length) { router.replace('/'); return }
+      setBrand(brand)
+      setCards(cards)
+    } catch {
+      router.replace('/')
+    }
+  }, [router])
 
-async function loadBrand() {
-  try {
-    const raw = await readFile(join(process.cwd(), 'brand.json'), 'utf8')
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-async function loadCards() {
-  const results = await Promise.allSettled(
-    CARD_IDS.map(id =>
-      readFile(join(process.cwd(), 'output', `${id}.html`), 'utf8')
-        .then(html => ({ id, html }))
-    )
-  )
-  return results
-    .filter(r => r.status === 'fulfilled')
-    .map(r => r.value)
-}
-
-export default async function ResultsPage() {
-  const [brand, cards] = await Promise.all([loadBrand(), loadCards()])
-
-  if (!brand || cards.length === 0) {
-    notFound()
-  }
+  if (!brand) return null
 
   const { client_name, tagline, mission, vision, industry, colors, typography, voice, hook_rules } = brand
-  const { background, headline, cta, accent } = colors.semantic
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-12">
@@ -65,13 +52,11 @@ export default async function ResultsPage() {
           <h2 className="mb-5 text-xs font-bold uppercase tracking-widest text-gray-400">Brand audit</h2>
 
           <div className="grid grid-cols-2 gap-6 text-sm">
-            {/* Identity */}
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Industry</span>
               <span className="text-gray-700">{industry}</span>
             </div>
 
-            {/* Typography */}
             <div className="flex flex-col gap-1">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Typography
@@ -80,7 +65,6 @@ export default async function ResultsPage() {
               <span className="text-gray-700">{typography.headline_font} / {typography.body_font}</span>
             </div>
 
-            {/* Mission */}
             {mission && (
               <div className="col-span-2 flex flex-col gap-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Mission</span>
@@ -88,7 +72,6 @@ export default async function ResultsPage() {
               </div>
             )}
 
-            {/* Vision */}
             {vision && (
               <div className="col-span-2 flex flex-col gap-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Vision</span>

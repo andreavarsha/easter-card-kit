@@ -49,6 +49,8 @@ export default function Home() {
     try {
       const res = await fetch('/api/generate', { method: 'POST', body: fd })
       if (res.ok) {
+        const data = await res.json()
+        sessionStorage.setItem('brandKit', JSON.stringify(data))
         router.push('/results')
       } else {
         const data = await res.json().catch(() => ({}))
