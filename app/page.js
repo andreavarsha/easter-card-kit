@@ -69,7 +69,7 @@ export default function Home() {
         <header className="mb-10">
           <h1 className="text-3xl font-semibold text-gray-900">Easter Card Kit</h1>
           <p className="mt-2 text-gray-500">
-            Upload your brand assets and we'll generate a set of on-brand Easter greeting cards.
+            Upload your brand assets and we&apos;ll generate a set of on-brand Easter greeting cards.
           </p>
         </header>
 
