@@ -1,101 +1,156 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import FileDropZone from '@/components/FileDropZone'
+import AboutToggle from '@/components/AboutToggle'
+import ProcessingScreen from '@/components/ProcessingScreen'
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter()
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const [logoFile, setLogoFile] = useState(null)
+  const [collectionFiles, setCollectionFiles] = useState([])
+  const [aboutMode, setAboutMode] = useState('text')
+  const [aboutText, setAboutText] = useState('')
+  const [aboutPdf, setAboutPdf] = useState(null)
+  const [theme, setTheme] = useState('')
+  const [errors, setErrors] = useState({})
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
+
+  function validate() {
+    const errs = {}
+    if (!logoFile) errs.logo = 'Logo is required'
+    if (collectionFiles.length === 0) errs.collection = 'At least one collection image is required'
+    if (aboutMode === 'text' && !aboutText.trim()) errs.about = 'Brand description is required'
+    if (aboutMode === 'pdf' && !aboutPdf) errs.about = 'Please upload a PDF or switch to text'
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSubmitError(null)
+    if (!validate()) return
+
+    setIsProcessing(true)
+
+    const fd = new FormData()
+    fd.append('logo', logoFile)
+    collectionFiles.forEach((f, i) => fd.append(`collection_${i}`, f))
+    if (aboutMode === 'pdf') {
+      fd.append('about_pdf', aboutPdf)
+    } else {
+      fd.append('about_text', aboutText)
+    }
+    fd.append('theme', theme)
+
+    try {
+      const res = await fetch('/api/generate', { method: 'POST', body: fd })
+      if (res.ok) {
+        router.push('/results')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setSubmitError(data.error ?? 'Something went wrong. Please try again.')
+        setIsProcessing(false)
+      }
+    } catch {
+      setSubmitError('Network error. Please check your connection and try again.')
+      setIsProcessing(false)
+    }
+  }
+
+  if (isProcessing) return <ProcessingScreen />
+
+  return (
+    <main className="min-h-screen bg-white px-4 py-12">
+      <div className="mx-auto max-w-xl">
+        <header className="mb-10">
+          <h1 className="text-3xl font-semibold text-gray-900">Easter Card Kit</h1>
+          <p className="mt-2 text-gray-500">
+            Upload your brand assets and we'll generate a set of on-brand Easter greeting cards.
+          </p>
+        </header>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-8" noValidate>
+
+          {/* Logo */}
+          <section className="flex flex-col gap-2">
+            <h2 className="text-base font-medium text-gray-900">Brand logo</h2>
+            <FileDropZone
+              id="logo-input"
+              label="Logo file"
+              accept="image/png,image/jpeg"
+              multiple={false}
+              maxFiles={1}
+              maxSizeMB={5}
+              files={logoFile ? [logoFile] : []}
+              onFiles={f => setLogoFile(f[0] ?? null)}
+              error={errors.logo}
+              hint="PNG or JPG · max 5 MB"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </section>
+
+          {/* Collection */}
+          <section className="flex flex-col gap-2">
+            <h2 className="text-base font-medium text-gray-900">Collection images</h2>
+            <FileDropZone
+              id="collection-input"
+              label="Collection photos"
+              accept="image/png,image/jpeg,image/webp"
+              multiple
+              maxFiles={5}
+              maxSizeMB={5}
+              files={collectionFiles}
+              onFiles={setCollectionFiles}
+              error={errors.collection}
+              hint="1–5 images · PNG, JPG or WEBP · max 5 MB each"
+            />
+          </section>
+
+          {/* About / Mission / Vision */}
+          <section className="flex flex-col gap-2">
+            <h2 className="text-base font-medium text-gray-900">About / mission / vision</h2>
+            <p className="text-sm text-gray-500">Paste your about page copy or upload a PDF.</p>
+            <AboutToggle
+              mode={aboutMode}
+              onModeChange={setAboutMode}
+              text={aboutText}
+              onTextChange={setAboutText}
+              pdfFile={aboutPdf}
+              onPdfChange={setAboutPdf}
+              error={errors.about}
+            />
+          </section>
+
+          {/* Theme */}
+          <section className="flex flex-col gap-2">
+            <h2 className="text-base font-medium text-gray-900">
+              Theme <span className="font-normal text-gray-400">(optional)</span>
+            </h2>
+            <input
+              type="text"
+              value={theme}
+              onChange={e => setTheme(e.target.value)}
+              placeholder="e.g. rustic farmhouse, luxury spa, playful kids brand"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </section>
+
+          {submitError && (
+            <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 transition-colors"
           >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+            Generate Easter cards
+          </button>
+
+        </form>
+      </div>
+    </main>
+  )
 }

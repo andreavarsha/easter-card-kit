@@ -24,7 +24,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Environment Variables
 
-- `ANTHROPIC_API_KEY` — `.env` locally (gitignored), Netlify dashboard in production
+| Variable | Purpose | Where |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Authenticates Claude API calls | `.env.local` locally; Netlify dashboard in production |
+| `MOCK_AI` | Set to `true` to skip the real Claude API and return a fixture brand.json | `.env.local` only — never production |
+
+Copy `.env.example` to `.env.local` to get started. With `MOCK_AI=true` you can run the full pipeline without an API key.
 
 ## Upload Input Specs
 
@@ -40,11 +45,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 app/
   page.js               # Homepage — upload form (logo, about, collection, theme)
   results/page.js       # Results — brand audit panel + card preview iframes
-  api/generate/         # Server action endpoint (not a page)
+  api/generate/
+    route.js            # POST handler — orchestrates the full pipeline
+components/
+  FileDropZone.js       # Drag-and-drop file input, 5MB guard, remove chips
+  AboutToggle.js        # Toggle: "Paste text" textarea vs "Upload PDF" input
+  ProcessingScreen.js   # 4 sequential status messages with strikethrough
+  CardPreviews.js       # Client component — iframes + Blob download buttons
+lib/
+  extractColors.js      # colorthief wrapper: image Buffers → { dominant, palette } hex strings
+  claudeVision.js       # Claude Vision API call → parsed brand.json object (supports MOCK_AI)
+  mockBrand.js          # Fixture brand.json for pipeline testing without hitting the API
+  cardTemplates.js      # generateCardHtml(brand, variant) → self-contained 600px HTML string
 output/                 # Generated card HTML files (hooks watch this dir)
 .claude/
   card-log.txt          # Appended by Stop hook: timestamp | session | card count | client name
 brand.json              # Extracted brand config (v2 schema, see below)
+.env.example            # Template — copy to .env.local
 ```
 
 ## Claude API Rules
@@ -103,12 +120,17 @@ All generated `brand.json` files must conform exactly to this shape:
 
 ## Generation Pipeline
 
-1. User submits form → Next.js server action receives files
-2. `colorthief` extracts dominant hex palettes from logo + collection images
-3. Single Claude Vision API call: all images + hex data → structured `brand.json` prompt
+1. User submits form → `POST /api/generate` receives FormData
+2. `lib/extractColors.js` — colorthief extracts dominant hex palettes from logo + collection images
+3. `lib/claudeVision.js` — single Claude Vision API call: all images + hex data → structured `brand.json`
 4. Server parses and validates JSON response
-5. Card HTML generated from `brand.json` via template function (3 variants)
-6. Client renders previews in iframes; download links created via Blob
+5. `lib/cardTemplates.js` — card HTML generated from `brand.json` (3 variants)
+6. Cards written to `output/`; `brand.json` written to project root
+7. Client renders previews in iframes on `/results`; download links created via Blob
+
+## Testing Without the API
+
+Set `MOCK_AI=true` in `.env.local`. The pipeline runs end-to-end using the fixture in `lib/mockBrand.js` (a fictional luxury candle brand — "Lumière & Co") with a 1.2s artificial delay so the processing screen steps are visible. No `ANTHROPIC_API_KEY` required.
 
 ## Hooks
 
@@ -143,4 +165,6 @@ Show these four sequential status messages (not a generic spinner):
 
 ## Custom Commands
 
-- `/scaffold-client` — (Phase 4) scaffolds a new client session with empty upload state and resets `brand.json`
+- `/scaffold-client <client-slug>` — creates `clients/<slug>/` with a blank brand.json stub and a README listing which images to add before running the pipeline
+- `/test-pipeline <client-slug>` — reads images from `clients/<slug>/`, runs extractColors + claudeVision, writes `clients/<slug>/brand.json`, prints a field-by-field summary
+- `/deploy-check` — pre-flight before pushing to Netlify: checks `netlify.toml` has a build section, runs `npm run build`

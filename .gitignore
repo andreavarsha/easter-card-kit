@@ -29,6 +29,10 @@ yarn-error.log*
 .env*.local
 .env
 
+# generated pipeline outputs
+/output/
+/brand.json
+
 # vercel
 .vercel
 
